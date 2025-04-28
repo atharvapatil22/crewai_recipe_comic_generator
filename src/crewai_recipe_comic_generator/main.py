@@ -4,7 +4,7 @@ import warnings
 
 from datetime import datetime
 
-from crewai_recipe_comic_generator.crew import ExampleFlow
+from crewai_recipe_comic_generator.crew import ComicGenFlow
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -17,14 +17,17 @@ def run():
     """
     Run the crew.
     """
-    inputs = {
-        'topic': 'AI LLMs',
-        'current_year': str(datetime.now().year)
+    mock_flow_input = {
+        "cleaned_recipe_data" : {
+            "name": "Salted Onion",
+            "ingredients": [{"name":"onion","quantity":"2 diced"}, {"name":"salt","quantity":"1 tbsp"}],
+            "instructions" : ["step1","step2"]
+        }
     }
     
     try:
-        inst = ExampleFlow(flow_input=inputs)
-        result = inst.kickoff()
+        comic_gen_flow = ComicGenFlow(flow_input=mock_flow_input)
+        result = comic_gen_flow.kickoff()
         print("Flow Result",result)
 
     except Exception as e:
