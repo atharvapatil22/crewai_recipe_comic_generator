@@ -1,0 +1,23 @@
+[project]
+name = "crewai_recipe_comic_generator"
+version = "0.1.0"
+description = "crewai-recipe-comic-generator using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "crewai[tools]>=0.102.0,<1.0.0"
+]
+
+[project.scripts]
+crewai_recipe_comic_generator = "crewai_recipe_comic_generator.main:run"
+run_crew = "crewai_recipe_comic_generator.main:run"
+train = "crewai_recipe_comic_generator.main:train"
+replay = "crewai_recipe_comic_generator.main:replay"
+test = "crewai_recipe_comic_generator.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
