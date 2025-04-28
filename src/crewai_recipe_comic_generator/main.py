@@ -18,10 +18,16 @@ def run():
     Run the crew.
     """
     mock_flow_input = {
-        "cleaned_recipe_data" : {
-            "name": "Salted Onion",
-            "ingredients": [{"name":"onion","quantity":"2 diced"}, {"name":"salt","quantity":"1 tbsp"}],
-            "instructions" : ["step1","step2"]
+        "cleaned_recipe_data": {
+            "name": "Lemon Water",
+            "ingredients": [
+                {"name": "water", "quantity": "1 glass"},
+                {"name": "lemon", "quantity": "1 slice"}
+            ],
+            "instructions": [
+                "Squeeze the lemon slice into the water.",
+                "Stir well and serve chilled."
+            ]
         }
     }
     

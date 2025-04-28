@@ -1,6 +1,6 @@
 '''All the pydantic models required by the ComicGenFlow are defined here'''
  
-from pydantic import BaseModel
+from pydantic import BaseModel,Field
 from typing import List
 
 # 1) Suplimentary state models - These are required by the main state models
@@ -27,3 +27,7 @@ class ImagesData(BaseModel):
   instruction_images: List[ImageObject]
 
 # 3) Agent/Tast models - These are required for some agents or tasks in the flow
+
+class ImagePrompt(BaseModel):
+  prompt: str = Field(description = "A prompt for text to image models that can be used to generate an image.")
+	
