@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call
+from .helpers import print_state,dalle_api_call,add_image_styling
 
 class ComicGenFlow(Flow):
 	def __init__(self, flow_input):
@@ -159,4 +159,19 @@ class ComicGenFlow(Flow):
 				print(f"Waiting for {sleep_time:.2f} seconds before next batch...")
 				time.sleep(sleep_time)
 				
-		print_state(self.state)
+		# print_state(self.state)
+
+	# (3) Style the generated images with cropping and adding text
+	@listen(generate_images)
+	def style_images(self):
+		image_objects_list = self.state['images_data'].ingredient_images + self.state['images_data'].instruction_images + [self.state['images_data'].cover_page]
+
+		for imgObj in image_objects_list:
+			add_image_styling(imgObj)
+
+		print('\n\nState updated- ',self.state['images_data'])
+
+	# (4) Merge the styled images and generate book pages.
+	@listen(style_images)
+	def merge_images(self):
+		""

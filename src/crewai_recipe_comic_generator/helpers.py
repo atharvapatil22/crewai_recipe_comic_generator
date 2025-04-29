@@ -1,7 +1,10 @@
 from openai import RateLimitError, APIError
-from .constants import ING_IMAGE_SIZE,INS_IMAGE_SIZE,POSTER_IMAGE_SIZE
+from .constants import ING_IMAGE_SIZE,INS_IMAGE_SIZE,POSTER_IMAGE_SIZE,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH
 from pydantic import BaseModel
 import json
+from PIL import Image
+import requests
+from io import BytesIO
 
 # Function will print Flow state in prettified format
 def print_state(state):
@@ -38,3 +41,23 @@ def dalle_api_call(imageObj,client):
     return response.data[0].url 
   except (RateLimitError,APIError) as e:
     raise Exception(f"[Application Exception] msg {e}")
+  
+# This function will resize images and add text to them
+def add_image_styling(img_obj):
+  response = requests.get(img_obj.url)
+  img = Image.open(BytesIO(response.content))
+  # print(f"Image Type: {img_obj.type}, Resolution: {img.width}x{img.height}")
+      
+  if img_obj.type == "ING":
+    x = (FINAL_PAGE_WIDTH * 25) // 80
+    x = int(x)  # Make sure it's an integer
+    img = img.resize((x, x))
+  elif img_obj.type == "INS":
+    img = img.resize((FINAL_PAGE_WIDTH // 2, FINAL_PAGE_HEIGHT // 2))
+
+  # print(f"-resized: {img_obj.type}, Resolution: {img.width}x{img.height}")
+
+  
+  # LOGIC TO ADD TEXT ON IMAGES
+
+  img_obj.styled_image = img
