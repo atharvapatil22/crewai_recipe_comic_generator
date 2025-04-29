@@ -28,7 +28,8 @@ class ComicGenFlow(Flow):
       instruction_images=[]
     )
 
-		# print_state(self.state)
+		print("ComicGenFlow constructor sucess ✅")
+		print_state(self.state)
 
 	# (1) Generate image prompts for (i)List of ingredients (ii)List of instructions and (iii)Poster/Cover page,
 	@start()
@@ -46,7 +47,7 @@ class ComicGenFlow(Flow):
 		#i)Ingredients
 		ingredient_task = Task(
 			description=f'''You are given an ingredient name: {{name}}. 
-			Generate a prompt which can be used by a text to image model to generate a comic style image for the ingredient. The prompt should be in less than 50 words. 
+			Generate a prompt which can be used by a text to image model to generate an image for the ingredient in comic art style. The prompt should be in less than 50 words. 
 			You may use any of the following additional information:
 			a) You are also given the quantity ({{quantity}}) of the ingredient. If it is feasable, you may incorporate this in the prompt.
 			b) The prompt should be about the ingredient with a blank or simple background''',
@@ -69,7 +70,7 @@ class ComicGenFlow(Flow):
 		#ii)Instructions
 		instruction_task = Task(
 			description=f'''You are given a particular step from the recipe instructions: {{step}}. 
-			Generate a prompt which can be used by a text to image model to generate a comic style image for this particular step. The prompt should be in less than 50 words. ''',
+			Generate a prompt which can be used by a text to image model to generate a comic style image for this particular step. The prompt should be in less than 50 words. It should be focused on the action performed in the step. Background should be simple ''',
 			agent=prompt_generation_agent,
 			expected_output="A prompt for the image generation tool.",
 			output_pydantic=ImagePrompt, 
@@ -249,4 +250,6 @@ class ComicGenFlow(Flow):
 
 		for page in pages:
 			page.show()
+		
+		return pages
 		

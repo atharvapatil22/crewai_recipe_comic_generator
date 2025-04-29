@@ -5,6 +5,7 @@ import json
 from PIL import Image
 import requests
 from io import BytesIO
+import base64
 
 # Function will print Flow state in prettified format
 def print_state(state):
@@ -61,3 +62,10 @@ def add_image_styling(img_obj):
   # LOGIC TO ADD TEXT ON IMAGES
 
   img_obj.styled_image = img
+
+def image_to_base64(image):
+  """Converts a PIL Image to a base64 string."""
+  buffered = BytesIO()
+  image.save(buffered, format="PNG")  
+  img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+  return img_str

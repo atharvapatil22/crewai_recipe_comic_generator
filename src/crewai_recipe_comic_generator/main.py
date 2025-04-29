@@ -13,31 +13,34 @@ warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 # Replace with inputs you want to test with, it will automatically
 # interpolate any tasks and agents information
 
-def run():
+def run(input_text):
     """
     Run the crew.
     """
-    mock_flow_input = {
-        "cleaned_recipe_data": {
-            "name": "Lemon Water",
-            "ingredients": [
-                {"name": "water", "quantity": "1 glass"},
-                {"name": "lemon", "quantity": "1 slice"}
-            ],
-            "instructions": [
-                "Squeeze the lemon slice into the water.",
-                "Stir well and serve chilled."
-            ]
-        }
-    }
+    # mock_flow_input = {
+    # "cleaned_recipe_data": {
+    #     "name": "Veggie Sandwich",
+    #     "ingredients": [
+    #         {"name": "bread slices", "quantity": "2 pieces"},
+    #         {"name": "lettuce", "quantity": "2 leaves"},
+    #         {"name": "tomato", "quantity": "4 slices"},
+    #     ],
+    #     "instructions": [
+    #         "Spread mayonnaise on one side of each bread slice.",
+    #         "Layer lettuce, tomato, cucumber, and cheese slice on one bread slice.",
+    #     ]
+    # }
+# }
     
     try:
-        comic_gen_flow = ComicGenFlow(flow_input=mock_flow_input)
+        # Generate flow input from preprocess flow
+        flow_input = input_text
+        comic_gen_flow = ComicGenFlow(flow_input=flow_input)
         result = comic_gen_flow.kickoff()
-        print("Flow Result",result)
+        return result
 
     except Exception as e:
-        raise Exception(f"An error occurred while running the crew: {e}")
+        raise Exception(f"[Application Exception] An error occurred while running the crew: {e}")
 
 
 # def train():

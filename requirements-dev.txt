@@ -105,7 +105,6 @@ hyperframe==6.1.0
 idna==3.10
 importlib_metadata==8.5.0
 importlib_resources==6.5.2
--e git+https://github.com/atharvapatil22/crewai-comic-generator@7d1993aa04e1ef7cf1739d43940a536075f50841#egg=incogen_exp
 iniconfig==2.0.0
 instructor==1.7.2
 intel-openmp==2021.4.0
