@@ -1,7 +1,7 @@
 '''All the pydantic models required by the ComicGenFlow are defined here'''
  
 from pydantic import BaseModel,Field
-from typing import List
+from typing import List,Literal
 
 # 1) Suplimentary state models - These are required by the main state models
 
@@ -10,6 +10,7 @@ class IngredientData(BaseModel):
   quantity: str
 
 class ImageObject(BaseModel):
+  type: Literal["ING","INS","POSTER"]
   prompt: str
   url: str
   styled_image: str
