@@ -4,7 +4,7 @@ import warnings
 
 from datetime import datetime
 
-from crewai_recipe_comic_generator.crew import ComicGenFlow
+from src.crewai_recipe_comic_generator.crew import ComicGenFlow
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
