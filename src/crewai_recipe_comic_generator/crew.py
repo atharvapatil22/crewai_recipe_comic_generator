@@ -1,8 +1,14 @@
 from crewai.flow.flow import Flow, listen, start
-from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
 from pydantic import ValidationError
 from crewai import Crew,Task,Agent,Process
 import json
+from openai import OpenAI
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME
+from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
+from .helpers import print_state,dalle_api_call
 
 class ComicGenFlow(Flow):
 	def __init__(self, flow_input):
@@ -12,16 +18,16 @@ class ComicGenFlow(Flow):
 		try:
 			self.state['recipe_data'] = RecipeData(**flow_input['cleaned_recipe_data'])
 		except ValidationError as e:
-			raise ValueError(f"Invalid input recieved by ComicGenFlow. Invalid recipe_data: {e}")
+			raise ValueError(f"[Application Exception] Invalid input recieved by ComicGenFlow. Invalid recipe_data: {e}")
 
     # Create empty images_data state variable
 		self.state['images_data'] = ImagesData(
-      cover_page=ImageObject(prompt="", url="", styled_image=""),
+      cover_page=ImageObject(type="POSTER",prompt="", url="", styled_image=""),
       ingredient_images=[],
       instruction_images=[]
     )
 
-		# print("\n\nState Updated -",self.state)
+		# print_state(self.state)
 
 	# (1) Generate image prompts for (i)List of ingredients (ii)List of instructions and (iii)Poster/Cover page,
 	@start()
@@ -94,15 +100,16 @@ class ComicGenFlow(Flow):
 
 		# Check assertion
 		if not len(ing_results) == len(recipe_data.ingredients):
-			raise AssertionError(f"Length of Ingredients from recipe_data and prompt results is not the same")
+			raise AssertionError(f"[Application Exception] Length of Ingredients from recipe_data and prompt results is not the same")
 		if not len(ins_results) == len(recipe_data.instructions):
-			raise AssertionError(f"Length of Instructions from recipe_data and prompt results is not the same")
+			raise AssertionError(f"[Application Exception] Length of Instructions from recipe_data and prompt results is not the same")
 
 		# Parsing the output & updating state
 		ingredient_images = []
 		for m in range(len(ing_results)):
 			ingredient_images.append(
 				ImageObject(
+				type = "ING",
 				prompt = json.loads(ing_results[m].raw)['prompt'],
 				url = "",
 				styled_image = "")
@@ -111,6 +118,7 @@ class ComicGenFlow(Flow):
 		for n in range(len(ins_results)):
 			instruction_images.append(
 				ImageObject(
+				type = "INS",
 				prompt = json.loads(ins_results[n].raw)['prompt'],
 				url = "",
 				styled_image = "")
@@ -120,10 +128,35 @@ class ComicGenFlow(Flow):
 		self.state['images_data'].instruction_images = instruction_images
 		self.state['images_data'].cover_page.prompt = json.loads(poster_prompt.raw)['prompt']
 
-		# print("\n\nState Updated -",self.state)
+		# print_state(self.state)
 
+	# (2) Generate DallE images using prompts
 	@listen(generate_prompts)
-	def fun2(self):
-		print("inside fun2")
+	def generate_images(self):
+		client = OpenAI()
 
-		return "fun2_output"
+		# A list of all image objects including ingredients,instructions & poster. For each object dall api will be called
+		image_objects_list = self.state['images_data'].ingredient_images + self.state['images_data'].instruction_images + [self.state['images_data'].cover_page]
+
+		# This loop will make parallel calls using the dalle_api_call function and other constant parameters
+		for i in range(0,len(image_objects_list),RL_DALLEE_BATCH_SIZE):
+			
+			# Create a batch of image objects
+			batch = image_objects_list[i:i+RL_DALLEE_BATCH_SIZE]
+
+			print(f"Processing batch {i//RL_DALLEE_BATCH_SIZE + 1}")
+			start_time = time.time()
+
+			with ThreadPoolExecutor(max_workers=RL_DALLEE_BATCH_SIZE) as executor:
+				future_to_prompt = {executor.submit(dalle_api_call, imageObj, client): imageObj for imageObj in batch}
+				for future in as_completed(future_to_prompt):
+					future.result()
+
+			# if more image objects are left then this block will handle sleep to avoid hitting the RL_DALEE_WAIT_TIME limit
+			if i + RL_DALLEE_BATCH_SIZE < len(image_objects_list):
+				elapsed = time.time() - start_time
+				sleep_time = max(0, RL_DALEE_WAIT_TIME - elapsed)
+				print(f"Waiting for {sleep_time:.2f} seconds before next batch...")
+				time.sleep(sleep_time)
+				
+		print_state(self.state)
