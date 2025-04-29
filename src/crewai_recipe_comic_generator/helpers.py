@@ -53,7 +53,7 @@ def add_image_styling(img_obj):
     x = int(x)  # Make sure it's an integer
     img = img.resize((x, x))
   elif img_obj.type == "INS":
-    img = img.resize((FINAL_PAGE_WIDTH // 2, FINAL_PAGE_HEIGHT // 2))
+    img = img.resize((FINAL_PAGE_HEIGHT // 2, FINAL_PAGE_WIDTH // 2))
 
   # print(f"-resized: {img_obj.type}, Resolution: {img.width}x{img.height}")
 

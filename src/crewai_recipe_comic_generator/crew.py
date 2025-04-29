@@ -5,8 +5,9 @@ import json
 from openai import OpenAI
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from PIL import Image
 
-from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME
+from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
 from .helpers import print_state,dalle_api_call,add_image_styling
 
@@ -174,4 +175,78 @@ class ComicGenFlow(Flow):
 	# (4) Merge the styled images and generate book pages.
 	@listen(style_images)
 	def merge_images(self):
-		""
+		images_data = self.state['images_data']
+		pages = []
+
+		### First page: Poster image
+		poster_img_obj = images_data.cover_page.styled_image
+		pages.append(poster_img_obj)
+
+		### Pages for ING images (3x4 grid = 12 per page)
+		ING_ROWS = 4
+		ING_COLS = 3
+		ING_PER_PAGE = ING_ROWS * ING_COLS
+
+		ing_chunks = [images_data.ingredient_images[i:i+ING_PER_PAGE] for i in range(0, len(images_data.ingredient_images), ING_PER_PAGE)]
+
+		for chunk in ing_chunks:
+			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
+
+			# Assume all ING images are same size (since they are 1:1)
+			sample_img = chunk[0].styled_image
+			img_w, img_h = sample_img.size
+
+			total_imgs_w = ING_COLS * img_w
+			total_imgs_h = ING_ROWS * img_h
+
+			padding_x = (FINAL_PAGE_WIDTH - total_imgs_w) // 2
+			padding_y = (FINAL_PAGE_HEIGHT - total_imgs_h) // 2
+
+			for idx, img_obj in enumerate(chunk):
+				row = idx // ING_COLS
+				col = idx % ING_COLS
+
+				x0 = padding_x + col * img_w
+				y0 = padding_y + row * img_h
+
+				page.paste(img_obj.styled_image, (x0, y0))
+
+			pages.append(page)
+
+		### Pages for INS images (3 per page, stacked vertically)
+		INS_PER_PAGE = 3
+
+		ins_chunks = [images_data.instruction_images[i:i+INS_PER_PAGE] for i in range(0, len(images_data.instruction_images), INS_PER_PAGE)]
+
+		for chunk in ins_chunks:
+			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
+
+			# These are fixed expected dimensions
+			expected_h = FINAL_PAGE_WIDTH // 2   # because width:height is 4:7 → image height is half of page width
+			expected_w = FINAL_PAGE_HEIGHT // 2  # image width is half of page height
+
+			current_y = 0  # start at top
+
+			for img_obj in chunk:
+				img = img_obj.styled_image
+				img_w, img_h = img.size
+
+				# Verify aspect ratio is approximately 7:4
+				assert abs((img_w / img_h) - (7/4)) < 0.05, f"INS image has wrong aspect ratio: {img_w}:{img_h}"
+
+				# Verify size
+				assert abs(img_w - expected_w) <= 5 and abs(img_h - expected_h) <= 5, f"INS image has wrong size: {img_w}x{img_h}"
+
+				# Center horizontally
+				x0 = (FINAL_PAGE_WIDTH - img_w) // 2
+				y0 = current_y
+
+				page.paste(img, (x0, y0))
+
+				current_y += img_h  # stack next image below
+
+			pages.append(page)
+
+		for page in pages:
+			page.show()
+		

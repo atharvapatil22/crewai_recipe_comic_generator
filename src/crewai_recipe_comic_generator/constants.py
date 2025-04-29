@@ -8,7 +8,7 @@ POSTER_IMAGE_SIZE = "1024x1792"
 RL_DALLEE_BATCH_SIZE = 5 #How many parallel calls(batch size) to the Image generation api
 RL_DALEE_WAIT_TIME = 60 #How many seconds to wait, before next batch of calls to Image generation api
 
-FINAL_PAGE_HEIGHT = 1024
-FINAL_PAGE_WIDTH = 1792
+FINAL_PAGE_HEIGHT = 1792
+FINAL_PAGE_WIDTH = 1024
 
 
