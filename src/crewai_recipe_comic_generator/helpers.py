@@ -45,7 +45,7 @@ def dalle_api_call(imageObj,client):
   
 # This function will resize images and add text to them
 def add_image_styling(img_obj):
-  response = requests.get(img_obj.url)
+  response = requests.get(img_obj.url, stream=True)
   img = Image.open(BytesIO(response.content))
   # print(f"Image Type: {img_obj.type}, Resolution: {img.width}x{img.height}")
       
