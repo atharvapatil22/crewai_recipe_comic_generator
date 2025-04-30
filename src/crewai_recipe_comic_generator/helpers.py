@@ -2,10 +2,11 @@ from openai import RateLimitError, APIError
 from .constants import ING_IMAGE_SIZE,INS_IMAGE_SIZE,POSTER_IMAGE_SIZE,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH
 from pydantic import BaseModel
 import json
-from PIL import Image
+from PIL import Image,ImageFont
 import requests
 from io import BytesIO
 import base64
+from pathlib import Path
 
 # Function will print Flow state in prettified format
 def print_state(state):
@@ -69,3 +70,37 @@ def image_to_base64(image):
   image.save(buffered, format="PNG")  
   img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
   return img_str
+
+def draw_header(draw, title):
+  HEADER_HEIGHT = 120
+  HEADER_COLOR = (135, 206, 250)  # sky blue
+  HEADER_TEXT_COLOR = (0, 0, 0)
+  HEADER_BORDER_COLOR = (0, 0, 0)     # Black
+  HEADER_BORDER_THICKNESS = 4
+  pattaya_font = Path(__file__).resolve().parent / "assets" / "Pattaya.ttf"
+
+  # Full-width rectangle (header background)
+  rect_x0 = 0
+  rect_y0 = 0
+  rect_x1 = FINAL_PAGE_WIDTH
+  rect_y1 = HEADER_HEIGHT
+  draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=HEADER_COLOR)
+
+  # Bottom border line (4px black)
+  border_y0 = HEADER_HEIGHT - HEADER_BORDER_THICKNESS
+  border_y1 = HEADER_HEIGHT
+  draw.rectangle([rect_x0, border_y0, rect_x1, border_y1], fill=HEADER_BORDER_COLOR)
+
+  # Load custom font
+  try:
+    font = ImageFont.truetype(str(pattaya_font), 46)
+  except:
+    font = ImageFont.load_default()
+
+  # Center the title
+  bbox = font.getbbox(title)
+  text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+  text_x = (FINAL_PAGE_WIDTH - text_w) // 2
+  text_y = (HEADER_HEIGHT - text_h) // 2
+
+  draw.text((text_x, text_y), title, fill=HEADER_TEXT_COLOR, font=font)

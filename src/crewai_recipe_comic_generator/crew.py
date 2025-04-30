@@ -5,11 +5,11 @@ import json
 from openai import OpenAI
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from PIL import Image
+from PIL import Image,ImageDraw
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call,add_image_styling
+from .helpers import print_state,dalle_api_call,add_image_styling,draw_header
 
 class PreProcessingFlow(Flow):
 	def __init__(self, flow_input):
@@ -269,6 +269,8 @@ class ComicGenFlow(Flow):
 	def merge_images(self):
 		images_data = self.state['images_data']
 		pages = []
+		HEADER_MARGIN = 20
+		header_height = 120 + HEADER_MARGIN
 
 		### First page: Poster image
 		poster_img_obj = images_data.cover_page.styled_image
@@ -283,8 +285,9 @@ class ComicGenFlow(Flow):
 
 		for chunk in ing_chunks:
 			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
+			draw = ImageDraw.Draw(page)
+			draw_header(draw, "Ingredients")
 
-			# Assume all ING images are same size (since they are 1:1)
 			sample_img = chunk[0].styled_image
 			img_w, img_h = sample_img.size
 
@@ -292,7 +295,7 @@ class ComicGenFlow(Flow):
 			total_imgs_h = ING_ROWS * img_h
 
 			padding_x = (FINAL_PAGE_WIDTH - total_imgs_w) // 2
-			padding_y = (FINAL_PAGE_HEIGHT - total_imgs_h) // 2
+			padding_y = ((FINAL_PAGE_HEIGHT - total_imgs_h) // 2) + header_height // 2  # shift down
 
 			for idx, img_obj in enumerate(chunk):
 				row = idx // ING_COLS
@@ -312,12 +315,14 @@ class ComicGenFlow(Flow):
 
 		for chunk in ins_chunks:
 			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
+			draw = ImageDraw.Draw(page)
+			draw_header(draw, "Instructions")
 
 			# These are fixed expected dimensions
 			expected_h = FINAL_PAGE_WIDTH // 2   # because width:height is 4:7 → image height is half of page width
 			expected_w = FINAL_PAGE_HEIGHT // 2  # image width is half of page height
 
-			current_y = 0  # start at top
+			current_y = header_height  # start below the header
 
 			for img_obj in chunk:
 				img = img_obj.styled_image
