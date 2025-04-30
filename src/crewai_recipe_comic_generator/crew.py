@@ -5,7 +5,8 @@ import json
 from openai import OpenAI
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from PIL import Image,ImageDraw
+from PIL import Image,ImageDraw,ImageFont
+from pathlib import Path
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
@@ -272,9 +273,63 @@ class ComicGenFlow(Flow):
 		HEADER_MARGIN = 20
 		header_height = 120 + HEADER_MARGIN
 
-		### First page: Poster image
+		### First page: Poster image with its header
 		poster_img_obj = images_data.cover_page.styled_image
-		pages.append(poster_img_obj)
+
+		# Create a copy to draw on
+		poster_with_overlay = poster_img_obj.copy()
+		draw = ImageDraw.Draw(poster_with_overlay)
+
+		# Overlay rectangle settings
+		OVERLAY_WIDTH = int(FINAL_PAGE_WIDTH * 0.7)
+		OVERLAY_HEIGHT = 240
+		OVERLAY_MARGIN_BOTTOM = 300
+		OVERLAY_COLOR = (135, 206, 250)
+		OVERLAY_TEXT = self.state['recipe_data'].name
+		BORDER_THICKNESS = 4
+		BORDER_COLOR = (0, 0, 0)
+
+		# Calculate position
+		rect_x0 = (FINAL_PAGE_WIDTH - OVERLAY_WIDTH) // 2
+		rect_y1 = FINAL_PAGE_HEIGHT - OVERLAY_MARGIN_BOTTOM
+		rect_y0 = rect_y1 - OVERLAY_HEIGHT
+		rect_x1 = rect_x0 + OVERLAY_WIDTH
+
+		# Draw overlay background
+		draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=OVERLAY_COLOR)
+
+		# Draw solid black border (4 sides manually to match "solid border")
+		for i in range(BORDER_THICKNESS):
+			draw.rectangle(
+				[rect_x0 - i, rect_y0 - i, rect_x1 + i, rect_y1 + i],
+				outline=BORDER_COLOR
+			)
+
+		# Load and draw text
+		pattaya_font = Path(__file__).resolve().parent / "assets" / "Pattaya.ttf"
+		try:
+			font = ImageFont.truetype(str(pattaya_font), 68)
+		except:
+			font = ImageFont.load_default()
+
+		# First line: main title
+		bbox1 = font.getbbox(OVERLAY_TEXT)
+		text1_w, text1_h = bbox1[2] - bbox1[0], bbox1[3] - bbox1[1]
+		text1_x = rect_x0 + (OVERLAY_WIDTH - text1_w) // 2
+		text1_y = rect_y0 + 20  # Top margin from inside the rectangle
+
+		draw.text((text1_x, text1_y), OVERLAY_TEXT, fill=(0, 0, 0), font=font)
+
+		subtitle_font = ImageFont.truetype(str(pattaya_font), 48)
+		bbox2 = subtitle_font.getbbox("(Recipe Book)")
+		text2_w, text2_h = bbox2[2] - bbox2[0], bbox2[3] - bbox2[1]
+		text2_x = rect_x0 + (OVERLAY_WIDTH - text2_w) // 2
+		text2_y = text1_y + text1_h + 10
+
+		draw.text((text2_x, text2_y), "(Recipe Book)", fill=(0, 0, 0), font=subtitle_font)
+
+		# Add final image to pages
+		pages.append(poster_with_overlay)
 
 		### Pages for ING images (3x4 grid = 12 per page)
 		ING_ROWS = 4
