@@ -4,7 +4,7 @@ import warnings
 
 from datetime import datetime
 
-from src.crewai_recipe_comic_generator.crew import ComicGenFlow
+from src.crewai_recipe_comic_generator.crew import ComicGenFlow,PreProcessingFlow
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -33,9 +33,10 @@ def run(input_text):
 # }
     
     try:
-        # Generate flow input from preprocess flow
-        flow_input = input_text
-        comic_gen_flow = ComicGenFlow(flow_input=flow_input)
+        pre_process_flow = PreProcessingFlow(flow_input=input_text)
+        parsed_input = pre_process_flow.kickoff()
+
+        comic_gen_flow = ComicGenFlow(flow_input=parsed_input)
         result = comic_gen_flow.kickoff()
         return result
 

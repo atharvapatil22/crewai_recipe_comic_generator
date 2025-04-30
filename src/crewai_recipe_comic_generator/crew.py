@@ -107,7 +107,7 @@ class ComicGenFlow(Flow):
 
     # Save recipe_data in state variable after validaton
 		try:
-			self.state['recipe_data'] = RecipeData(**flow_input['cleaned_recipe_data'])
+			self.state['recipe_data'] = RecipeData(**flow_input)
 		except ValidationError as e:
 			raise ValueError(f"[Application Exception] Invalid input recieved by ComicGenFlow. Invalid recipe_data: {e}")
 
