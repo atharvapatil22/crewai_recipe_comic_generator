@@ -83,6 +83,7 @@ class PreProcessingFlow(Flow):
 			- If a title is not explicitly given, infer a name (e.g., "Lemon Water", "Cucumber Mix").
 			- Each ingredient must include both name and quantity.
 			- for each ingredient its quantity must only contain quantity related data. For example "3 cloves (minced)" should become "3 cloves"
+			- if any ingredient is mentioned as optional then remove it completely and also remove the corresponding step or instruction
 			- Each instruction step must be a concise, clear sentence.
 			""",
 			agent=recipe_extraction_agent,
