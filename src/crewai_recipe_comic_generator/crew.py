@@ -7,9 +7,99 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 
-from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH
+from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
 from .helpers import print_state,dalle_api_call,add_image_styling
+
+class PreProcessingFlow(Flow):
+	def __init__(self, flow_input):
+		super().__init__()
+		# Save raw input to state
+		self.state['input_text'] = flow_input
+
+		print("PreProcessingFlow constructor sucess ✅")
+		print_state(self.state)
+
+	# (1) Check if the input resembles a recipe
+	@start()
+	def validate_recipe(self):
+		validator_agent = Agent(
+			role="Recipe Validator",
+			goal="Decide if the given input text is a valid recipe",
+			backstory="You're a culinary AI with expertise in identifying recipes from natural language text.",
+			verbose=True
+		)
+
+		validation_task = Task(
+			description=f"""
+			You are given the following user input:
+			{self.state['input_text']}
+
+			Determine if it resembles a cooking recipe or not. For it to be a valid recipe it must have mentions of ingredient names and their quantities. And it must gave a series of steps or instrucitons to make the recipe.
+			If the input is a valid recipe, respond with 'VALID'.
+			If the input is not a recipe or lacks come components, respond with a short reason starting with 'ERROR:'.
+			""",
+			agent=validator_agent,
+			expected_output="Either 'VALID' or 'ERROR: ...'",
+		)
+
+		crew = Crew(agents=[validator_agent], tasks=[validation_task], process=Process.sequential)
+		result = crew.kickoff()
+
+		if result.raw.startswith("ERROR"):
+			print(result)
+			raise Exception(f"[Application Exception] The input text does not resemble a recipe")
+		
+	# (2) Extract recipe data 
+	@listen(validate_recipe)
+	def extract_full_recipe(self):
+		input_text = self.state['input_text']
+
+		# Agent Definition
+		recipe_extraction_agent = Agent(
+			role="Recipe Extraction Specialist",
+			goal="Extract complete structured recipe data from natural language input.",
+			backstory="""
+					You are a culinary AI assistant trained to understand free-form text that contains recipes.
+					You specialize in converting messy or informal recipe text into a clean JSON structure.
+					If the recipe name is not clearly mentioned, infer a short descriptive title from the ingredients and instructions.
+			""",
+			verbose=True
+		)
+
+		# Task Description
+		recipe_extraction_task = Task(
+			description=f"""
+			Your job is to extract structured recipe data from the following text:
+
+			{input_text}
+
+			Output a python dictionary with the following keys:
+			"name": a sting with title for the recipe,
+			"ingredients": a list of dictionaries with each dict containing "name" and "quantity" keys
+			"instructions": a list of strings which are the steps of the recipe
+			
+			Notes:
+			- If a title is not explicitly given, infer a name (e.g., "Lemon Water", "Cucumber Mix").
+			- Each ingredient must include both name and quantity.
+			- for each ingredient its quantity must only contain quantity related data. For example "3 cloves (minced)" should become "3 cloves"
+			- Each instruction step must be a concise, clear sentence.
+			""",
+			agent=recipe_extraction_agent,
+			expected_output="A recipe data object with all the recipe information",
+			output_pydantic=RecipeData
+		)
+
+		# Run the task via Crew
+		crew = Crew(agents=[recipe_extraction_agent], tasks=[recipe_extraction_task], process=Process.sequential)
+		result = crew.kickoff()
+		parsed_result = json.loads(result.raw)
+
+		# validation image gen limit
+		if (len(parsed_result["ingredients"]) + len(parsed_result["instructions"]) + 1) > IMG_GEN_LIMIT:
+			raise Exception(f"[Application Exception] Recipe is too large. Current app limit is set for {IMG_GEN_LIMIT} images!")
+		
+		return parsed_result
 
 class ComicGenFlow(Flow):
 	def __init__(self, flow_input):

@@ -1,5 +1,7 @@
 '''This file contains global constants that are required anywhere in the app'''
 
+IMG_GEN_LIMIT = 20
+
 ING_IMAGE_SIZE = "1024x1024"
 INS_IMAGE_SIZE = "1792x1024"
 POSTER_IMAGE_SIZE = "1024x1792"
