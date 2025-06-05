@@ -7,10 +7,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image,ImageDraw,ImageFont,ImageOps
 from pathlib import Path
+import requests
+from io import BytesIO
+
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT,PS_TITLE_HEIGHT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call,add_image_styling,draw_page_title,style_ing_image
+from .helpers import print_state,dalle_api_call,draw_page_title,style_ing_image,style_ins_image
 
 class PreProcessingFlow(Flow):
 	def __init__(self, flow_input):
@@ -270,7 +273,7 @@ class ComicGenFlow(Flow):
 		for index in range(0,len(images_data.ingredient_images)):
 			style_ing_image(images_data.ingredient_images[index],recipe_data.ingredients[index])
 		for index in range(0,len(images_data.instruction_images)):
-			add_image_styling(images_data.instruction_images[index])
+			style_ins_image(images_data.instruction_images[index],recipe_data.instructions[index],index+1)
 
 		print('\n\nState updated- ',self.state['images_data'])
 
@@ -280,11 +283,14 @@ class ComicGenFlow(Flow):
 		images_data = self.state['images_data']
 		pages = []
 
-		# (4a) First page: Poster image with its header
-		poster_img_obj = images_data.cover_page.styled_image
+		# # (4a) First page: Poster image with its header
+		# poster_img_obj = images_data.cover_page.styled_image
+
+		response = requests.get(images_data.cover_page.url, stream=True)
+		raw_img = Image.open(BytesIO(response.content))
 
 		# Create a copy to draw on
-		poster_with_overlay = poster_img_obj.copy()
+		poster_with_overlay = raw_img.copy()
 		draw = ImageDraw.Draw(poster_with_overlay)
 
 		# Overlay rectangle settings
@@ -376,39 +382,31 @@ class ComicGenFlow(Flow):
 
 			pages.append(page)
 
-		### Pages for INS images (3 per page, stacked vertically)
-		INS_PER_PAGE = 3
+		# (4c) Instruction pages (3 per page)
+		ins_image_objects = images_data.instruction_images
+		INS_PER_PAGE = 3 
 
-		ins_chunks = [images_data.instruction_images[i:i+INS_PER_PAGE] for i in range(0, len(images_data.instruction_images), INS_PER_PAGE)]
+		for i in range(0, len(ins_image_objects), INS_PER_PAGE):
+			page_imgs = ins_image_objects[i:i+INS_PER_PAGE]
 
-		for chunk in ins_chunks:
+			# Create blank page
 			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
 			draw = ImageDraw.Draw(page)
 			draw_page_title(draw, "Instructions")
 
-			# These are fixed expected dimensions
-			expected_h = FINAL_PAGE_WIDTH // 2   # because width:height is 4:7 → image height is half of page width
-			expected_w = FINAL_PAGE_HEIGHT // 2  # image width is half of page height
+			# Calculate layout
+			available_height = FINAL_PAGE_HEIGHT - PS_TITLE_HEIGHT
+			total_imgs_height = sum(img.styled_image.height for img in page_imgs)
+			num_gaps = len(page_imgs) + 1  # space above, between, and below
+			gap_height = (available_height - total_imgs_height) // num_gaps
 
-			current_y = PS_TITLE_HEIGHT  # start below the header
-
-			for img_obj in chunk:
-				img = img_obj.styled_image
-				img_w, img_h = img.size
-
-				# Verify aspect ratio is approximately 7:4
-				assert abs((img_w / img_h) - (7/4)) < 0.05, f"INS image has wrong aspect ratio: {img_w}:{img_h}"
-
-				# Verify size
-				assert abs(img_w - expected_w) <= 5 and abs(img_h - expected_h) <= 5, f"INS image has wrong size: {img_w}x{img_h}"
-
-				# Center horizontally
-				x0 = (FINAL_PAGE_WIDTH - img_w) // 2
-				y0 = current_y
-
-				page.paste(img, (x0, y0))
-
-				current_y += img_h  # stack next image below
+			# Start placing images
+			current_y = PS_TITLE_HEIGHT + gap_height
+			for obj in page_imgs:
+					img = obj.styled_image
+					x = (FINAL_PAGE_WIDTH - img.width) // 2  # center horizontally
+					page.paste(img, (x, current_y))
+					current_y += img.height + gap_height
 
 			pages.append(page)
 

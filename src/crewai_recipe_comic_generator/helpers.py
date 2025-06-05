@@ -7,6 +7,7 @@ import requests
 from io import BytesIO
 import base64
 from pathlib import Path
+import textwrap
 
 # Function will print Flow state in prettified format
 def print_state(state):
@@ -44,22 +45,6 @@ def dalle_api_call(imageObj,client):
   except (RateLimitError,APIError) as e:
     raise Exception(f"[Application Exception] msg {e}")
   
-# This function will resize images and add labels to them
-def add_image_styling(img_obj):
-  response = requests.get(img_obj.url, stream=True)
-  raw_img = Image.open(BytesIO(response.content))
-  # print(f"Image Type: {img_obj.type}, Resolution: {img.width}x{img.height}")
-      
-  if img_obj.type == "ING":
-    pass
-
-  elif img_obj.type == "INS":
-    raw_img = raw_img.resize((FINAL_PAGE_HEIGHT // 2, FINAL_PAGE_WIDTH // 2))
-    img_obj.styled_image = raw_img
-
-  else:
-    img_obj.styled_image = raw_img
-
 # This function will download the generated ING images and save them as PIL. And resize + add labels to them
 def style_ing_image(img_obj,ing_obj):
   response = requests.get(img_obj.url, stream=True)
@@ -109,6 +94,91 @@ def style_ing_image(img_obj,ing_obj):
   bordered_image = ImageOps.expand(labled_img, border=BORDER_SIZE, fill="black")
 
   img_obj.styled_image = bordered_image  
+
+# This function will download the generated INS images and save them as PIL. And resize + add text to them
+def style_ins_image(img_obj,ins_text,step_num):
+  response = requests.get(img_obj.url, stream=True)
+  raw_img = Image.open(BytesIO(response.content))
+
+  BASE_LABEL_HEIGHT = 50
+  LABEL_COLOR = (135, 206, 250)  # Sky blue
+  BORDER_SIZE = 2
+  SCALE_DOWN_FACTOR = 0.45
+  MAX_LABEL_HEIGHT = 80
+  LINE_SPACING = 6
+  TEXT_PADDING_X = 10
+
+  # Scale down image
+  new_width = int(raw_img.width * SCALE_DOWN_FACTOR)
+  new_height = int(raw_img.height * SCALE_DOWN_FACTOR)
+  resized_img = raw_img.resize((new_width, new_height))
+
+  # Load font
+  patrick_font = Path(__file__).resolve().parent / "assets" / "PatrickHand.ttf"
+  try:
+    font = ImageFont.truetype(str(patrick_font), 25)
+  except:
+    font = ImageFont.load_default()
+
+  full_text = f"Step {step_num}: {ins_text}"
+
+  # Check if text fits in one line
+  text_width = font.getbbox(full_text)[2] - font.getbbox(full_text)[0]
+  available_width = new_width - 2 * TEXT_PADDING_X
+
+  if text_width <= available_width:
+    label_height = BASE_LABEL_HEIGHT
+    labled_img = Image.new("RGB", (new_width, new_height + label_height), color=(255, 255, 255))
+    draw = ImageDraw.Draw(labled_img)
+
+    # Draw background and border
+    draw.rectangle([0, new_height, new_width, new_height + label_height], fill=LABEL_COLOR)
+    draw.rectangle([0, new_height, new_width, new_height + BORDER_SIZE], fill="black")
+
+    # Vertically center
+    text_h = font.getbbox(full_text)[3] - font.getbbox(full_text)[1]
+    text_y = new_height + (label_height - text_h) // 2
+    draw.text((TEXT_PADDING_X, text_y), full_text, fill=(0, 0, 0), font=font)
+  else:
+    # Split into 2 lines
+    label_height = MAX_LABEL_HEIGHT
+    labled_img = Image.new("RGB", (new_width, new_height + label_height), color=(255, 255, 255))
+    draw = ImageDraw.Draw(labled_img)
+
+    draw.rectangle([0, new_height, new_width, new_height + label_height], fill=LABEL_COLOR)
+    draw.rectangle([0, new_height, new_width, new_height + BORDER_SIZE], fill="black")
+
+    # Wrap text into max 2 lines
+    wrapper = textwrap.TextWrapper(width=100)
+    wrapped_lines = []
+    temp_line = ""
+    for word in full_text.split():
+      trial_line = temp_line + (" " if temp_line else "") + word
+      if font.getbbox(trial_line)[2] - font.getbbox(trial_line)[0] <= available_width:
+        temp_line = trial_line
+      else:
+        wrapped_lines.append(temp_line)
+        temp_line = word
+      if len(wrapped_lines) == 2:
+        break
+    if temp_line and len(wrapped_lines) < 2:
+      wrapped_lines.append(temp_line)
+
+    # Vertical centering
+    total_text_height = sum(font.getbbox(line)[3] - font.getbbox(line)[1] for line in wrapped_lines)
+    total_text_height += (len(wrapped_lines) - 1) * LINE_SPACING
+    start_y = new_height + (label_height - total_text_height) // 2
+
+    for i, line in enumerate(wrapped_lines):
+      line_h = font.getbbox(line)[3] - font.getbbox(line)[1]
+      draw.text((TEXT_PADDING_X, start_y), line, fill=(0, 0, 0), font=font)
+      start_y += line_h + LINE_SPACING
+
+  # Paste the image above the label
+  labled_img.paste(resized_img, (0, 0))
+  bordered_image = ImageOps.expand(labled_img, border=BORDER_SIZE, fill="black")
+
+  img_obj.styled_image = bordered_image
 
 def image_to_base64(image):
   """Converts a PIL Image to a base64 string."""
