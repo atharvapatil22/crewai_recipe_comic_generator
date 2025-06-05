@@ -5,12 +5,12 @@ import json
 from openai import OpenAI
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from PIL import Image,ImageDraw,ImageFont
+from PIL import Image,ImageDraw,ImageFont,ImageOps
 from pathlib import Path
 
-from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT
+from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT,PS_TITLE_HEIGHT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call,add_image_styling,draw_header
+from .helpers import print_state,dalle_api_call,add_image_styling,draw_page_title
 
 class PreProcessingFlow(Flow):
 	def __init__(self, flow_input):
@@ -270,10 +270,8 @@ class ComicGenFlow(Flow):
 	def merge_images(self):
 		images_data = self.state['images_data']
 		pages = []
-		HEADER_MARGIN = 20
-		header_height = 120 + HEADER_MARGIN
 
-		### First page: Poster image with its header
+		# (4a) First page: Poster image with its header
 		poster_img_obj = images_data.cover_page.styled_image
 
 		# Create a copy to draw on
@@ -328,38 +326,50 @@ class ComicGenFlow(Flow):
 
 		draw.text((text2_x, text2_y), "(Recipe Book)", fill=(0, 0, 0), font=subtitle_font)
 
-		# Add final image to pages
+		# (4a) First page completed
 		pages.append(poster_with_overlay)
 
-		### Pages for ING images (3x4 grid = 12 per page)
+		# (4b) Ingredients pages (3x4 grid = 12 per page)
+		ing_image_objects = images_data.ingredient_images
 		ING_ROWS = 4
 		ING_COLS = 3
 		ING_PER_PAGE = ING_ROWS * ING_COLS
+		BORDER_SIZE = 2
 
-		ing_chunks = [images_data.ingredient_images[i:i+ING_PER_PAGE] for i in range(0, len(images_data.ingredient_images), ING_PER_PAGE)]
+		# All styled ingredient images are the same size, use any random one to get the dimensions
+		sample_image = ing_image_objects[0].styled_image
+		bordered_width = sample_image.width + 2 * BORDER_SIZE
+		bordered_height = sample_image.height + 2 * BORDER_SIZE
 
-		for chunk in ing_chunks:
-			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
+		# Calculate how much empty space will be left and divide it evenly (space-evenly logic)
+		total_img_width = ING_COLS * bordered_width
+		total_img_height = ING_ROWS * bordered_height
+		total_h_space = FINAL_PAGE_WIDTH - total_img_width
+		h_gap = total_h_space / (ING_COLS + 1)
+
+		total_v_space = (FINAL_PAGE_HEIGHT - PS_TITLE_HEIGHT) - total_img_height
+		v_gap = total_v_space / (ING_ROWS + 1)
+
+		for page_start in range(0, len(ing_image_objects), ING_PER_PAGE):
+			# Get the current set of 1 to 12 images
+			page_images = ing_image_objects[page_start:page_start + ING_PER_PAGE]
+
+			# Create a new blank white page
+			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color="white")
 			draw = ImageDraw.Draw(page)
-			draw_header(draw, "Ingredients")
+			draw_page_title(draw, "Ingredients")
 
-			sample_img = chunk[0].styled_image
-			img_w, img_h = sample_img.size
-
-			total_imgs_w = ING_COLS * img_w
-			total_imgs_h = ING_ROWS * img_h
-
-			padding_x = (FINAL_PAGE_WIDTH - total_imgs_w) // 2
-			padding_y = ((FINAL_PAGE_HEIGHT - total_imgs_h) // 2) + header_height // 2  # shift down
-
-			for idx, img_obj in enumerate(chunk):
+			for idx, img_obj in enumerate(page_images):
 				row = idx // ING_COLS
 				col = idx % ING_COLS
 
-				x0 = padding_x + col * img_w
-				y0 = padding_y + row * img_h
+				x = int(h_gap + col * (bordered_width + h_gap))
+				y = int(PS_TITLE_HEIGHT + v_gap + row * (bordered_height + v_gap))
 
-				page.paste(img_obj.styled_image, (x0, y0))
+				# Add border to image
+				bordered_image = ImageOps.expand(img_obj.styled_image, border=BORDER_SIZE, fill="black")
+
+				page.paste(bordered_image, (x, y))
 
 			pages.append(page)
 
@@ -371,13 +381,13 @@ class ComicGenFlow(Flow):
 		for chunk in ins_chunks:
 			page = Image.new("RGB", (FINAL_PAGE_WIDTH, FINAL_PAGE_HEIGHT), color=(255, 255, 255))
 			draw = ImageDraw.Draw(page)
-			draw_header(draw, "Instructions")
+			draw_page_title(draw, "Instructions")
 
 			# These are fixed expected dimensions
 			expected_h = FINAL_PAGE_WIDTH // 2   # because width:height is 4:7 → image height is half of page width
 			expected_w = FINAL_PAGE_HEIGHT // 2  # image width is half of page height
 
-			current_y = header_height  # start below the header
+			current_y = PS_TITLE_HEIGHT  # start below the header
 
 			for img_obj in chunk:
 				img = img_obj.styled_image

@@ -1,8 +1,8 @@
 from openai import RateLimitError, APIError
-from .constants import ING_IMAGE_SIZE,INS_IMAGE_SIZE,POSTER_IMAGE_SIZE,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH
+from .constants import ING_IMAGE_SIZE,INS_IMAGE_SIZE,POSTER_IMAGE_SIZE,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,PS_TITLE_HEIGHT
 from pydantic import BaseModel
 import json
-from PIL import Image,ImageFont
+from PIL import Image,ImageFont,ImageDraw
 import requests
 from io import BytesIO
 import base64
@@ -47,22 +47,46 @@ def dalle_api_call(imageObj,client):
 # This function will resize images and add text to them
 def add_image_styling(img_obj):
   response = requests.get(img_obj.url, stream=True)
-  img = Image.open(BytesIO(response.content))
+  raw_img = Image.open(BytesIO(response.content))
   # print(f"Image Type: {img_obj.type}, Resolution: {img.width}x{img.height}")
       
   if img_obj.type == "ING":
-    x = (FINAL_PAGE_WIDTH * 25) // 80
-    x = int(x)  # Make sure it's an integer
-    img = img.resize((x, x))
-  elif img_obj.type == "INS":
-    img = img.resize((FINAL_PAGE_HEIGHT // 2, FINAL_PAGE_WIDTH // 2))
+    LABEL_HEIGHT = 60
+    LABEL_COLOR = (135, 206, 250)  # Sky blue
 
-  # print(f"-resized: {img_obj.type}, Resolution: {img.width}x{img.height}")
+    # Scale down image
+    new_width = (FINAL_PAGE_WIDTH * 22) // 80
+    resized_img = raw_img.resize((new_width, new_width))
+
+    # Add label text
+    labled_img = Image.new("RGB", (new_width, new_width + LABEL_HEIGHT), color=(255, 255, 255))
+    
+    draw = ImageDraw.Draw(labled_img)
+    draw.rectangle([0, 0, new_width, LABEL_HEIGHT], fill=LABEL_COLOR)
+    pattaya_font = Path(__file__).resolve().parent / "assets" / "Pattaya.ttf"
+    try:
+      font = ImageFont.truetype(str(pattaya_font), 20)
+    except:
+      font = ImageFont.load_default()
+    text = "placeholder"
+    bbox = font.getbbox(text)
+    text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    text_x = (new_width - text_w) // 2
+    text_y = (LABEL_HEIGHT - text_h) // 2
+    draw.text((text_x, text_y), text, fill=(0, 0, 0), font=font)
+
+    labled_img.paste(resized_img, (0, LABEL_HEIGHT))
+
+    img_obj.styled_image = labled_img
+
+  elif img_obj.type == "INS":
+    raw_img = raw_img.resize((FINAL_PAGE_HEIGHT // 2, FINAL_PAGE_WIDTH // 2))
+    img_obj.styled_image = raw_img
+
+  else:
+    img_obj.styled_image = raw_img
 
   
-  # LOGIC TO ADD TEXT ON IMAGES
-
-  img_obj.styled_image = img
 
 def image_to_base64(image):
   """Converts a PIL Image to a base64 string."""
@@ -71,25 +95,25 @@ def image_to_base64(image):
   img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
   return img_str
 
-def draw_header(draw, title):
-  HEADER_HEIGHT = 120
-  HEADER_COLOR = (135, 206, 250)  # sky blue
-  HEADER_TEXT_COLOR = (0, 0, 0)
-  HEADER_BORDER_COLOR = (0, 0, 0)     # Black
-  HEADER_BORDER_THICKNESS = 4
+def draw_page_title(draw, title):
+  TITLE_HEIGHT = PS_TITLE_HEIGHT
+  TITLE_BG_COLOR = (135, 206, 250)  # sky blue
+  TITLE_TEXT_COLOR = (0, 0, 0)
+  TITLE_BORDER_COLOR = (0, 0, 0)     # Black
+  TITLE_BORDER_THICKNESS = 4
   pattaya_font = Path(__file__).resolve().parent / "assets" / "Pattaya.ttf"
 
-  # Full-width rectangle (header background)
+  # Full-width rectangle (title background)
   rect_x0 = 0
   rect_y0 = 0
   rect_x1 = FINAL_PAGE_WIDTH
-  rect_y1 = HEADER_HEIGHT
-  draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=HEADER_COLOR)
+  rect_y1 = TITLE_HEIGHT
+  draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=TITLE_BG_COLOR)
 
   # Bottom border line (4px black)
-  border_y0 = HEADER_HEIGHT - HEADER_BORDER_THICKNESS
-  border_y1 = HEADER_HEIGHT
-  draw.rectangle([rect_x0, border_y0, rect_x1, border_y1], fill=HEADER_BORDER_COLOR)
+  border_y0 = TITLE_HEIGHT - TITLE_BORDER_THICKNESS
+  border_y1 = TITLE_HEIGHT
+  draw.rectangle([rect_x0, border_y0, rect_x1, border_y1], fill=TITLE_BORDER_COLOR)
 
   # Load custom font
   try:
@@ -101,6 +125,6 @@ def draw_header(draw, title):
   bbox = font.getbbox(title)
   text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
   text_x = (FINAL_PAGE_WIDTH - text_w) // 2
-  text_y = (HEADER_HEIGHT - text_h) // 2
+  text_y = (TITLE_HEIGHT - text_h) // 2
 
-  draw.text((text_x, text_y), title, fill=HEADER_TEXT_COLOR, font=font)
+  draw.text((text_x, text_y), title, fill=TITLE_TEXT_COLOR, font=font)
