@@ -2,7 +2,7 @@ from openai import RateLimitError, APIError
 from .constants import ING_IMAGE_SIZE,INS_IMAGE_SIZE,POSTER_IMAGE_SIZE,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,PS_TITLE_HEIGHT
 from pydantic import BaseModel
 import json
-from PIL import Image,ImageFont,ImageDraw
+from PIL import Image,ImageFont,ImageDraw,ImageOps
 import requests
 from io import BytesIO
 import base64
@@ -44,40 +44,14 @@ def dalle_api_call(imageObj,client):
   except (RateLimitError,APIError) as e:
     raise Exception(f"[Application Exception] msg {e}")
   
-# This function will resize images and add text to them
+# This function will resize images and add labels to them
 def add_image_styling(img_obj):
   response = requests.get(img_obj.url, stream=True)
   raw_img = Image.open(BytesIO(response.content))
   # print(f"Image Type: {img_obj.type}, Resolution: {img.width}x{img.height}")
       
   if img_obj.type == "ING":
-    LABEL_HEIGHT = 60
-    LABEL_COLOR = (135, 206, 250)  # Sky blue
-
-    # Scale down image
-    new_width = (FINAL_PAGE_WIDTH * 22) // 80
-    resized_img = raw_img.resize((new_width, new_width))
-
-    # Add label text
-    labled_img = Image.new("RGB", (new_width, new_width + LABEL_HEIGHT), color=(255, 255, 255))
-    
-    draw = ImageDraw.Draw(labled_img)
-    draw.rectangle([0, 0, new_width, LABEL_HEIGHT], fill=LABEL_COLOR)
-    pattaya_font = Path(__file__).resolve().parent / "assets" / "Pattaya.ttf"
-    try:
-      font = ImageFont.truetype(str(pattaya_font), 20)
-    except:
-      font = ImageFont.load_default()
-    text = "placeholder"
-    bbox = font.getbbox(text)
-    text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    text_x = (new_width - text_w) // 2
-    text_y = (LABEL_HEIGHT - text_h) // 2
-    draw.text((text_x, text_y), text, fill=(0, 0, 0), font=font)
-
-    labled_img.paste(resized_img, (0, LABEL_HEIGHT))
-
-    img_obj.styled_image = labled_img
+    pass
 
   elif img_obj.type == "INS":
     raw_img = raw_img.resize((FINAL_PAGE_HEIGHT // 2, FINAL_PAGE_WIDTH // 2))
@@ -86,7 +60,55 @@ def add_image_styling(img_obj):
   else:
     img_obj.styled_image = raw_img
 
+# This function will download the generated ING images and save them as PIL. And resize + add labels to them
+def style_ing_image(img_obj,ing_obj):
+  response = requests.get(img_obj.url, stream=True)
+  raw_img = Image.open(BytesIO(response.content))
+  LABEL_HEIGHT = 80
+  LABEL_COLOR = (135, 206, 250)  # Sky blue
+  BORDER_SIZE = 2
+
+  # Scale down image
+  new_width = (FINAL_PAGE_WIDTH * 22) // 80
+  resized_img = raw_img.resize((new_width, new_width))
+
+  # Add label text
+  labled_img = Image.new("RGB", (new_width, new_width + LABEL_HEIGHT), color=(255, 255, 255))
   
+  draw = ImageDraw.Draw(labled_img)
+  draw.rectangle([0, 0, new_width, LABEL_HEIGHT], fill=LABEL_COLOR)
+  draw.rectangle([0, LABEL_HEIGHT - BORDER_SIZE, new_width, LABEL_HEIGHT],fill="black")
+
+  patrick_font = Path(__file__).resolve().parent / "assets" / "PatrickHand.ttf"
+  try:
+    font = ImageFont.truetype(str(patrick_font), 25)
+  except:
+    font = ImageFont.load_default()
+  # Split text into two lines
+  name_text = f'{ing_obj.name}'
+  quantity_text = f'({ing_obj.quantity})'
+
+  # Measure each line
+  name_bbox = font.getbbox(name_text)
+  name_w, name_h = name_bbox[2] - name_bbox[0], name_bbox[3] - name_bbox[1]
+
+  qty_bbox = font.getbbox(quantity_text)
+  qty_w, qty_h = qty_bbox[2] - qty_bbox[0], qty_bbox[3] - qty_bbox[1]
+
+  # Compute vertical placement for two lines
+  total_text_height = name_h + qty_h + 8  # 4px spacing between lines
+  start_y = (LABEL_HEIGHT - total_text_height) // 2
+
+  # Draw both lines centered
+  draw.text(((new_width - name_w) // 2, start_y), name_text, fill=(0, 0, 0), font=font)
+  draw.text(((new_width - qty_w) // 2, start_y + name_h + 4), quantity_text, fill=(0, 0, 0), font=font)
+
+  # Paste the image below the label
+  labled_img.paste(resized_img, (0, LABEL_HEIGHT))
+
+  bordered_image = ImageOps.expand(labled_img, border=BORDER_SIZE, fill="black")
+
+  img_obj.styled_image = bordered_image  
 
 def image_to_base64(image):
   """Converts a PIL Image to a base64 string."""

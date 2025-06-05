@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT,PS_TITLE_HEIGHT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call,add_image_styling,draw_page_title
+from .helpers import print_state,dalle_api_call,add_image_styling,draw_page_title,style_ing_image
 
 class PreProcessingFlow(Flow):
 	def __init__(self, flow_input):
@@ -258,10 +258,19 @@ class ComicGenFlow(Flow):
 	# (3) Style the generated images with cropping and adding text
 	@listen(generate_images)
 	def style_images(self):
-		image_objects_list = self.state['images_data'].ingredient_images + self.state['images_data'].instruction_images + [self.state['images_data'].cover_page]
+		images_data = self.state['images_data']
+		recipe_data = self.state['recipe_data']
 
-		for imgObj in image_objects_list:
-			add_image_styling(imgObj)
+		# Check assertion
+		if not len(images_data.ingredient_images) == len(recipe_data.ingredients):
+			raise AssertionError(f"[Application Exception] Length of Ingredients from image_data and recipe_data is not the same")
+		if not len(images_data.instruction_images) == len(recipe_data.instructions):
+			raise AssertionError(f"[Application Exception] Length of Instructions from image_data and recipe_data is not the same")
+		
+		for index in range(0,len(images_data.ingredient_images)):
+			style_ing_image(images_data.ingredient_images[index],recipe_data.ingredients[index])
+		for index in range(0,len(images_data.instruction_images)):
+			add_image_styling(images_data.instruction_images[index])
 
 		print('\n\nState updated- ',self.state['images_data'])
 
@@ -334,19 +343,16 @@ class ComicGenFlow(Flow):
 		ING_ROWS = 4
 		ING_COLS = 3
 		ING_PER_PAGE = ING_ROWS * ING_COLS
-		BORDER_SIZE = 2
 
 		# All styled ingredient images are the same size, use any random one to get the dimensions
 		sample_image = ing_image_objects[0].styled_image
-		bordered_width = sample_image.width + 2 * BORDER_SIZE
-		bordered_height = sample_image.height + 2 * BORDER_SIZE
+		ing_width, ing_height = sample_image.width, sample_image.height
 
 		# Calculate how much empty space will be left and divide it evenly (space-evenly logic)
-		total_img_width = ING_COLS * bordered_width
-		total_img_height = ING_ROWS * bordered_height
+		total_img_width = ING_COLS * ing_width
+		total_img_height = ING_ROWS * ing_height
 		total_h_space = FINAL_PAGE_WIDTH - total_img_width
 		h_gap = total_h_space / (ING_COLS + 1)
-
 		total_v_space = (FINAL_PAGE_HEIGHT - PS_TITLE_HEIGHT) - total_img_height
 		v_gap = total_v_space / (ING_ROWS + 1)
 
@@ -363,13 +369,10 @@ class ComicGenFlow(Flow):
 				row = idx // ING_COLS
 				col = idx % ING_COLS
 
-				x = int(h_gap + col * (bordered_width + h_gap))
-				y = int(PS_TITLE_HEIGHT + v_gap + row * (bordered_height + v_gap))
+				x = int(h_gap + col * (ing_width + h_gap))
+				y = int(PS_TITLE_HEIGHT + v_gap + row * (ing_height + v_gap))
 
-				# Add border to image
-				bordered_image = ImageOps.expand(img_obj.styled_image, border=BORDER_SIZE, fill="black")
-
-				page.paste(bordered_image, (x, y))
+				page.paste(img_obj.styled_image, (x, y))
 
 			pages.append(page)
 
