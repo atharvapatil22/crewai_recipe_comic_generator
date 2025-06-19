@@ -17,20 +17,6 @@ def run(input_text):
     """
     Run the crew.
     """
-    # mock_flow_input = {
-    # "cleaned_recipe_data": {
-    #     "name": "Veggie Sandwich",
-    #     "ingredients": [
-    #         {"name": "bread slices", "quantity": "2 pieces"},
-    #         {"name": "lettuce", "quantity": "2 leaves"},
-    #         {"name": "tomato", "quantity": "4 slices"},
-    #     ],
-    #     "instructions": [
-    #         "Spread mayonnaise on one side of each bread slice.",
-    #         "Layer lettuce, tomato, cucumber, and cheese slice on one bread slice.",
-    #     ]
-    # }
-# }
     
     try:
         pre_process_flow = PreProcessingFlow(flow_input=input_text)
