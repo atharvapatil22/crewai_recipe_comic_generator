@@ -9,6 +9,7 @@ from PIL import Image,ImageDraw,ImageFont,ImageOps
 from pathlib import Path
 import requests
 from io import BytesIO
+from postgrest import APIError
 
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT,PS_TITLE_HEIGHT
@@ -103,6 +104,15 @@ class PreProcessingFlow(Flow):
 		# validation image gen limit
 		if (len(parsed_result["ingredients"]) + len(parsed_result["instructions"]) + 1) > IMG_GEN_LIMIT:
 			raise Exception(f"[Application Exception] Recipe is too large. Current app limit is set for {IMG_GEN_LIMIT} images!")
+				
+		# Inserting recipe detials into DB
+		try:
+			db_response = (supabase.table("workloads").insert({"prompt": input_text, "recipe_name": parsed_result['name'],"ingredients": parsed_result["ingredients"],"instructions": parsed_result["instructions"]}).execute())
+			
+			print("DB RES",db_response)
+			parsed_result['db_id'] = db_response.data[0]['id']
+		except (APIError) as e:
+			raise Exception(f"[DB Exception] msg {e}")
 		
 		return parsed_result
 

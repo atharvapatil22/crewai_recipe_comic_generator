@@ -21,6 +21,7 @@ class RecipeData(BaseModel):
   name: str
   ingredients: List[IngredientData]
   instructions: List[str]
+  db_id: int
 
 class ImagesData(BaseModel):
   cover_page: ImageObject
