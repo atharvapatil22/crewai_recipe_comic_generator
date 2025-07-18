@@ -14,7 +14,8 @@ from postgrest import APIError
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT,PS_TITLE_HEIGHT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call,draw_page_title,style_ing_image,style_ins_image
+from .helpers import print_state,dalle_api_call,draw_page_title,style_ing_image,style_ins_image,upload_comic_to_reddit
+from .supabase_client import supabase
 
 class PreProcessingFlow(Flow):
 	def __init__(self, flow_input):
@@ -108,8 +109,9 @@ class PreProcessingFlow(Flow):
 		# Inserting recipe detials into DB
 		try:
 			db_response = (supabase.table("workloads").insert({"prompt": input_text, "recipe_name": parsed_result['name'],"ingredients": parsed_result["ingredients"],"instructions": parsed_result["instructions"]}).execute())
-			
-			print("DB RES",db_response)
+
+			print("Inserted recipe detials into DB ✅")		
+			# print("DB response: ",db_response)
 			parsed_result['db_id'] = db_response.data[0]['id']
 		except (APIError) as e:
 			raise Exception(f"[DB Exception] msg {e}")
@@ -413,15 +415,38 @@ class ComicGenFlow(Flow):
 			# Start placing images
 			current_y = PS_TITLE_HEIGHT + gap_height
 			for obj in page_imgs:
-					img = obj.styled_image
-					x = (FINAL_PAGE_WIDTH - img.width) // 2  # center horizontally
-					page.paste(img, (x, current_y))
-					current_y += img.height + gap_height
+				img = obj.styled_image
+				x = (FINAL_PAGE_WIDTH - img.width) // 2  # center horizontally
+				page.paste(img, (x, current_y))
+				current_y += img.height + gap_height
 
 			pages.append(page)
 
-		for page in pages:
-			page.show()
+		# for page in pages:
+		# 	page.show()
+
+		return pages
+	
+	# (5) Save the comic book on third party cloud platform
+	@listen(merge_images)
+	def cloud_upload(self,pages):
+
+		comic_url = upload_comic_to_reddit(pages,self.state['recipe_data'].name)
+
+		# Adding comic url into DB
+		try:
+			db_response = (
+				supabase
+				.table("workloads")
+				.update({"comic_url": comic_url})
+				.eq("id", self.state['recipe_data'].db_id)
+				.execute()
+			)
+			
+			print("Adding comic url into DB ✅")
+			# print("DB response: ",db_response)
+		except (APIError) as e:
+			raise Exception(f"[DB Exception] msg {e}")
 		
 		return pages
 		

@@ -9,6 +9,10 @@ import base64
 from pathlib import Path
 import textwrap
 
+import praw
+import tempfile
+import os
+
 # Function will print Flow state in prettified format
 def print_state(state):
   state_dict = {
@@ -220,3 +224,43 @@ def draw_page_title(draw, title):
   text_y = (TITLE_HEIGHT - text_h) // 2
 
   draw.text((text_x, text_y), title, fill=TITLE_TEXT_COLOR, font=font)
+
+def upload_comic_to_reddit(pil_images,recipe_name):
+
+  reddit = praw.Reddit(
+    client_id=os.environ.get("REDDIT_CLIENT_ID"),             
+    client_secret=os.environ.get("REDDIT_SECRET"),     
+    username="No-Advisor9169",              
+    password=os.environ.get("REDDIT_ACCOUNT_PASSWORD"),        
+    user_agent="RecipeComicGenGallery/0.1 by u/No-Advisor9169"
+  )
+
+  # Subreddit to post to
+  subreddit = reddit.subreddit("RecipeComicGenGallery")
+
+  # Save PIL images to temporary files
+  temp_files = []
+  for idx, img in enumerate(pil_images):
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+    img.save(temp_file, format="JPEG")
+    temp_file.close()  
+    temp_files.append({"image_path": temp_file.name, "caption": f"Page {idx + 1}"})
+
+  post_title = recipe_name + " - Recipe book"
+  # Submit gallery post 
+  submission = subreddit.submit_gallery(
+    title=post_title,
+    images=temp_files,
+    nsfw=False,       # Optional: mark NSFW
+    spoiler=False,    # Optional: mark Spoiler
+    flair_id=None,    # Optional: add a flair ID
+    flair_text=None   # Optional: set flair text
+  )
+
+  print("Comic uploaded to reddit ✅")
+
+  # Clean up temp files 
+  for img in temp_files:
+    os.remove(img["image_path"])
+
+  return submission.url

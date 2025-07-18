@@ -32,7 +32,10 @@ def run_crew():
     
     # if crewai_response == "LIMIT_EXCEEDED":
     #   return jsonify({"message": "Ingredient Limit exceeded"}), 400
-    return jsonify({"message": "API SUCCESS","res":crewai_output}), 200
+    if isinstance(crewai_output, list) and all(isinstance(item, PIL.Image.Image) for item in crewai_output):
+      poster = [image_to_base64(page) for page in crewai_output]
+      print("[FLASK] ready to send response 🚀☑️")
+      return jsonify({"message": "API SUCCESS","res":poster}), 200
       
   except Exception as e:
     return jsonify({"message":"[Application Exception] Some internal error occured!","error": str(e)}), 500
