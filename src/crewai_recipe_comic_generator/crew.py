@@ -14,7 +14,7 @@ from postgrest import APIError
 
 from .constants import RL_DALLEE_BATCH_SIZE,RL_DALEE_WAIT_TIME,FINAL_PAGE_HEIGHT,FINAL_PAGE_WIDTH,IMG_GEN_LIMIT,PS_TITLE_HEIGHT
 from .comic_gen_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from .helpers import print_state,dalle_api_call,draw_page_title,style_ing_image,style_ins_image,upload_comic_to_reddit,get_preview_image_from_reddit_post
+from .helpers import print_state,dalle_api_call,draw_page_title,style_ing_image,style_ins_image,upload_comic_to_reddit,get_reddit_preview_image
 from .supabase_client import supabase
 
 class PreProcessingFlow(Flow):
@@ -433,7 +433,8 @@ class ComicGenFlow(Flow):
 
 		comic_url = upload_comic_to_reddit(pages,self.state['recipe_data'].name)
 
-		preview_image_url = get_preview_image_from_reddit_post(comic_url)
+		submission_id = comic_url.split('/')[-1]  
+		preview_image_url = get_reddit_preview_image(submission_id)
 
 		# Adding comic url into DB
 		try:

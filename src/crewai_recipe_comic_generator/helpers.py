@@ -266,45 +266,28 @@ def upload_comic_to_reddit(pil_images,recipe_name):
 
   return submission.url
 
-def get_preview_image_from_reddit_post(reddit_url: str) -> str | None:
-  """
-  Given a Reddit gallery post URL, fetch the .json endpoint and extract
-  the first image URL from media_metadata.
-  """
-  if reddit_url.endswith('/'):
-    reddit_url = reddit_url[:-1]
-  json_url = reddit_url + '.json'
-
-  headers = {
-    'User-Agent': 'RecipeComicGenGalleryBot/1.0 (by u/No-Advisor9169)'
-  }
+def get_reddit_preview_image(submission_id: str) -> str | None:
+  reddit = praw.Reddit(
+    client_id=os.environ.get("REDDIT_CLIENT_ID"),             
+    client_secret=os.environ.get("REDDIT_SECRET"),     
+    username="No-Advisor9169",              
+    password=os.environ.get("REDDIT_ACCOUNT_PASSWORD"),        
+    user_agent="RecipeComicGenGallery/0.1 by u/No-Advisor9169"
+  )
 
   try:
-    resp = requests.get(json_url, headers=headers, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-
-    post_data = data[0]['data']['children'][0]['data']
-    gallery_items = post_data.get('gallery_data', {}).get('items')
-    media_metadata = post_data.get('media_metadata')
-
-    if not gallery_items or not media_metadata:
-      print("[Warning] No gallery data or media metadata found in Reddit JSON")
+    submission = reddit.submission(id=submission_id)
+    if hasattr(submission, "media_metadata"):
+      media = submission.media_metadata
+      first_media_id = list(submission.gallery_data['items'])[0]['media_id']
+      url = media[first_media_id]['s']['u']
+      return html.unescape(url)
+    else:
+      print("[Warning] No media metadata available.")
       return None
-
-    first_media_id = gallery_items[0]['media_id']
-    first_image_info = media_metadata[first_media_id]
-
-    # Extract the best quality image url ('s' key), fallback to 'p' (preview)
-    image_url_encoded = first_image_info.get('s', {}).get('u') or first_image_info.get('p', [{}])[0].get('u')
-
-    if not image_url_encoded:
-      print("[Warning] No image URL found in media metadata")
-      return None
-
-    # Reddit encodes ampersands as &amp; so unescape HTML entities
-    image_url = html.unescape(image_url_encoded)
-    return image_url
+  except Exception as e:
+    print(f"[Error] Reddit API fetch failed: {e}")
+    return None
 
   except Exception as e:
     print(f"[Error] Failed to fetch or parse Reddit post JSON: {e}")
