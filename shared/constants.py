@@ -1,8 +1,8 @@
 '''This file contains global constants that are required by any service in the system'''
 
 # 1] for flask orchestrator
-WORKFLOW_STATUSES = {
-  "strting_workload" : "Starting workload",
+WORKLOAD_STATUSES = {
+  "starting_workload" : "Starting workload",
   'validating_recipe' : "Validating recipe",
   "extracting_recipe" : "Extracting recipe",
   "awaiting_user_choice": "Awaiting user choice",
