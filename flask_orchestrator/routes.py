@@ -1,7 +1,11 @@
 from flask import Blueprint, request, jsonify
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from shared.constants import WORKLOAD_STATUSES
 from shared.supabase_client import supabase
-from shared.redis import preprocess_queue
+from shared.redis_client import preprocess_queue,comicgen_queue
+
 
 routes = Blueprint("routes", __name__)
 
@@ -37,7 +41,7 @@ def create_workload():
       input_text,
       result_ttl=3600
     )
-    print("[FLASK] Inserted new task into preprocess queue ✅")
+    print("[FLASK] Added new task into preprocess queue ✅")
 
   except Exception as e:
     return jsonify({
@@ -49,3 +53,42 @@ def create_workload():
     "workload_id": workflow_public_id,
     "message": "Created new workload successfully"
   }), 201
+
+@routes.route("/workloads/<workload_id>/continue-flow", methods=["PUT"])
+def continue_flow(workload_id):
+  try:
+    data = request.json 
+    recipe_data = data.get("recipe_data")
+
+    # Enqueue comicgen task
+    comicgen_queue.enqueue(
+      "workers.comicgen_worker.comicgen_task",
+      workload_id,
+      recipe_data,
+      result_ttl=3600
+    )
+    print("[FLASK] Added new task into comicgen queue ✅")
+
+  except Exception as e:
+    return jsonify({
+      "message": "Failed to continue flow",
+      "error": str(e),
+    }), 500
+
+  return jsonify({
+    "message": "Continued flow successfully"
+  }), 200
+
+@routes.route("/workflows/<workflow_id>/user-decision", methods=["PUT"])
+def user_decision(workflow_id):
+  try:
+    data = request.json
+    choice = data.get("choice")
+    selected_comic_id = data.get("selected_comic_id") 
+
+    print("REACHED",choice,selected_comic_id) 
+
+  except Exception as e:
+    return {"message": "Failed to handle user decision", "error": str(e)}, 500
+
+  return {"message": f"User decision handled successfully"}, 200

@@ -5,7 +5,7 @@ import os
 dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 load_dotenv(dotenv_path)
 from flask import Flask
-from .routes import routes
+from routes import routes
 
 app = Flask(__name__)
 app.register_blueprint(routes)
