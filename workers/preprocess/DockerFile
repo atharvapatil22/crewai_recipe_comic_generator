@@ -1,19 +1,20 @@
-# Use official Python image
 FROM python:3.11-slim
 
-# Set working directory inside container
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
+# Install dependencies
+COPY workers/preprocess/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy worker code
-COPY preprocess_worker.py .
-COPY shared ./shared
+# Copy the entire shared folder
+COPY shared/ /app/shared/
 
-# Set environment variables if needed
-# ENV PYTHONUNBUFFERED=1
+# Copy the worker code
+COPY workers/preprocess/preprocess_worker.py /app/preprocess_worker.py
+COPY workers/preprocess/PreProcessingFlow.py /app/PreProcessingFlow.py
 
-# Start RQ worker tracking "preprocess" queue
-CMD ["rq", "worker", "preprocess"]
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH="/app:/shared"
+
+CMD ["rq", "worker", "-u", "redis://redis:6379", "preprocess"]
