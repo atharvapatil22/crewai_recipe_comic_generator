@@ -10,11 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY shared/ /app/shared/
 
 # Copy the worker code
-COPY workers/preprocess/preprocess_worker.py /app/preprocess_worker.py
-COPY workers/preprocess/PreProcessingFlow.py /app/PreProcessingFlow.py
+COPY workers/preprocess/ /app/
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH="/app:/shared"
-
-CMD ["rq", "worker", "-u", "redis://redis:6379", "preprocess"]
+CMD rq worker --verbose -u redis://:$REDIS_PASSWORD@$REDIS_HOST:$REDIS_PORT preprocess

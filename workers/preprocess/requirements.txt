@@ -3,3 +3,4 @@ Requests==2.32.5
 redis
 rq
 shared==0.0.32
+supabase==2.15.3

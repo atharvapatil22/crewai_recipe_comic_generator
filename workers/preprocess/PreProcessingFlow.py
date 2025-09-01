@@ -21,7 +21,7 @@ class PreProcessingFlow(Flow):
 	# (1) Check if the input resembles a recipe
 	@start()
 	def validate_recipe(self):
-		workload_status_update(WORKLOAD_STATUSES['validating_recipe'])
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['validating_recipe'])
 
 		validator_agent = Agent(
 			role="Recipe Validator",
@@ -47,13 +47,13 @@ class PreProcessingFlow(Flow):
 		result = crew.kickoff()
 
 		if result.raw.startswith("ERROR"):
-			workload_status_update(WORKLOAD_STATUSES['failed_not_recipe'])
+			workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['failed_not_recipe'])
 			raise Exception(f"[Preprocess Worker] The input text does not resemble a recipe")
 		
 	# (2) Extract recipe data 
 	@listen(validate_recipe)
 	def extract_full_recipe(self):
-		workload_status_update(WORKLOAD_STATUSES['extracting_recipe'])
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['extracting_recipe'])
 
 		task_input = self.state['task_input']
 
@@ -100,7 +100,7 @@ class PreProcessingFlow(Flow):
 
 		# validation image gen limit
 		if (len(parsed_result["ingredients"]) + len(parsed_result["instructions"]) + 1) > IMG_GEN_LIMIT:
-			workload_status_update(WORKLOAD_STATUSES['failed_overlimit'])
+			workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['failed_overlimit'])
 			raise Exception(f"[Preprocess Worker] The input exceeds image generation limit. Current limit is {IMG_GEN_LIMIT}")
 		
 		self.state['recipe_data'] = parsed_result
@@ -109,7 +109,7 @@ class PreProcessingFlow(Flow):
 	# (3) Search for existing similar comics 
 	@listen(extract_full_recipe)
 	def search_existing_comics(self):
-		workload_status_update(WORKLOAD_STATUSES['searching_comics'])
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['searching_comics'])
 
 		recipe_data = self.state['recipe_data']
 		previous_workloads = (
@@ -177,4 +177,4 @@ class PreProcessingFlow(Flow):
 			except Exception as e:
 				raise Exception(f"\n[Preprocess Worker] Failed to call orchestrator: {e}")
 			
-		print("PreProcessingFlow completed ✅")
+		# If control reaches here, then preprocessing flow is completed

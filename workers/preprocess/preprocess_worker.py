@@ -1,4 +1,4 @@
-import PreProcessingFlow
+from PreProcessingFlow import PreProcessingFlow
 
 def preprocess_task(workload_id, input_text):
   print(f"[Preprocess Worker] Starting PreprocessingFlow for workload- {workload_id}")

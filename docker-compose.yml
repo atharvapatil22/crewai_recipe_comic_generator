@@ -15,9 +15,7 @@ services:
     ports:
       - "5000:5000"
     env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app:/app/shared
+      - flask_orchestrator/.env.flask_orchestrator
     depends_on:
       - redis
     networks:
@@ -29,9 +27,7 @@ services:
       dockerfile: workers/preprocess/Dockerfile
     container_name: preprocess_worker
     env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app:/app/shared
+      - workers/preprocess/.env.preprocess
     depends_on:
       - redis
       - flask_orchestrator
