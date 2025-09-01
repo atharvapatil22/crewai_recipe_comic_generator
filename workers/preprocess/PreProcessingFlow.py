@@ -103,7 +103,7 @@ class PreProcessingFlow(Flow):
 			workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['failed_overlimit'])
 			raise Exception(f"[Preprocess Worker] The input exceeds image generation limit. Current limit is {IMG_GEN_LIMIT}")
 		
-		self.state['recipe_data'] = parsed_result
+		self.state['recipe_data'] = RecipeData(**parsed_result)
 		print_state(self.state)
 	
 	# (3) Search for existing similar comics 
@@ -115,7 +115,7 @@ class PreProcessingFlow(Flow):
 		previous_workloads = (
 			supabase.table("workloads") 
 			.select("*") 
-			.eq("status", "completed_w_new") 
+			.eq("status", "COMPLETED_W_NEW") 
 			.order("created_at", desc=True) 
 			.limit(100) 
 			.execute() 
@@ -141,8 +141,8 @@ class PreProcessingFlow(Flow):
 			# Weighted score: prioritize exact name matches, ingredients as secondary
 			score = (0.7 * name_score) + (0.3 * ing_overlap)
 
-			if score > 0.85:  
-				similar.append(workload["id"])
+			if score > 0.80:  
+				similar.append(workload["comic_id"])
 
 		if len(similar) != 0:
 			# Update the DB record for the current workload
@@ -153,6 +153,7 @@ class PreProcessingFlow(Flow):
 				"similar_comics": similar[-3:],
 				"status": WORKLOAD_STATUSES['awaiting_user_choice']
 			}).eq("id", self.state["workload_id"]).execute()
+			print("[Preprocess Worker] Updated DB with similar comics ✅")
 		else: 
 			# Update DB with recipe details
 			supabase.table("workloads").update({
@@ -160,6 +161,7 @@ class PreProcessingFlow(Flow):
 				"ingredients": [{"name": ing.name,"quantity":ing.quantity} for ing in recipe_data.ingredients],
 				"instructions": recipe_data.instructions
 			}).eq("id", self.state["workload_id"]).execute()
+			print("[Preprocess Worker] Updated DB with current recipe data ✅")
 
 			orchestrator_url = f"http://flask_orchestrator:5000/workloads/{self.state['workload_id']}/continue-flow"
 			# Prepare payload
@@ -174,7 +176,7 @@ class PreProcessingFlow(Flow):
 			try:
 				response = requests.put(orchestrator_url, json=payload, timeout=10)
 				response.raise_for_status()
+				print("[Preprocess Worker] Sent a PUT:continue-flow request to orchestrator ✅")
 			except Exception as e:
 				raise Exception(f"\n[Preprocess Worker] Failed to call orchestrator: {e}")
 			
-		# If control reaches here, then preprocessing flow is completed

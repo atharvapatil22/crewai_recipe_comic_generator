@@ -39,7 +39,7 @@ def create_workload():
       "preprocess_worker.preprocess_task", 
       workflow_internal_id,
       input_text,
-      result_ttl=3600
+      result_ttl=86400 #24hrs
     )
     print("[FLASK] Added new task into preprocess queue ✅")
 
@@ -62,7 +62,7 @@ def continue_flow(workload_id):
 
     # Enqueue comicgen task
     comicgen_queue.enqueue(
-      "workers.comicgen_worker.comicgen_task",
+      "comicgen_worker.comicgen_task",
       workload_id,
       recipe_data,
       result_ttl=86400 #24hrs
