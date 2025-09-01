@@ -4,3 +4,4 @@ shared==0.0.32
 supabase==2.15.3
 redis
 rq
+flask-cors

@@ -6,8 +6,10 @@ dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".en
 load_dotenv(dotenv_path)
 from flask import Flask
 from routes import routes
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.register_blueprint(routes)
 
 if __name__ == "__main__":

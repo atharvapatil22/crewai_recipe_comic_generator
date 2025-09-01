@@ -3,3 +3,5 @@ __pycache__/
 .DS_Store
 /flask_orchestrator/venv
 /workers/preprocess/venv
+/flask_orchestrator/.env.flask_orchestrator
+/workers/preprocess/.env.preprocess

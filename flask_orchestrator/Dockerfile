@@ -15,9 +15,6 @@ COPY shared/ /app/shared/
 COPY flask_orchestrator/app.py /app/app.py
 COPY flask_orchestrator/routes.py /app/routes.py
 
-# Set Python path to include shared folder
-ENV PYTHONPATH=/app:/app/shared
-
 EXPOSE 5000
 
 CMD ["python", "app.py"]
