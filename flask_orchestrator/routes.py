@@ -65,7 +65,9 @@ def continue_flow(workload_id):
     comicgen_queue.enqueue(
       "comicgen_worker.comicgen_task",
       workload_id,
-      recipe_data,
+      recipe_data['name'],
+      recipe_data['ingredients'],
+      recipe_data['instructions'],
       result_ttl=86400 #24hrs
     )
     print("[FLASK] Added new task into comicgen queue ✅")
@@ -93,9 +95,31 @@ def user_decision(workload_public_id):
     if choice not in ["NEW", "EXISTING"]:
       return {"message": "Invalid choice value"}, 400
 
-    print(f"REACHED: workload_public_id={workload_public_id}, choice={choice}, selected_comic_id={selected_comic_id}")
+    if choice == 'EXISTING':
+      db_response = (
+        supabase.table("workloads")
+        .update({
+          "status": WORKLOAD_STATUSES['completed_w_existing'],
+          "comic_id": selected_comic_id
+        })
+        .eq("public_id", workload_public_id) 
+        .execute()
+      )
+      print("[FLASK] DB Workflow record updated to COMPLETED_W_EXISTING ✅")
+    elif choice == 'NEW':
+      db_response = supabase.table("workloads").select("id,recipe_name,ingredients,instructions").eq("public_id", workload_public_id).execute()
+      workload = db_response.data[0]  
 
-    # TODO: Save decision in DB or perform necessary action
+      # Enqueue comicgen task
+      comicgen_queue.enqueue(
+        "comicgen_worker.comicgen_task",
+        workload["id"],
+        workload["recipe_name"],
+        workload["ingredients"],
+        workload["instructions"],
+        result_ttl=86400 #24hrs
+      )
+      print("[FLASK] Added new task into comicgen queue ✅")
 
   except Exception as e:
     return {"message": "Failed to handle user decision", "error": str(e)}, 500
