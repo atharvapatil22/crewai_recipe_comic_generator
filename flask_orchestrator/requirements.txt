@@ -5,3 +5,4 @@ supabase==2.15.3
 redis
 rq
 flask-cors
+openai==1.76.2

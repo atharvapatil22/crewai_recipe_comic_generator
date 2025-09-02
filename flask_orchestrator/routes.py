@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 import sys
 import os
+from openai import OpenAI
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from shared.constants import WORKLOAD_STATUSES
 from shared.supabase_client import supabase
@@ -100,3 +101,52 @@ def user_decision(workload_public_id):
     return {"message": "Failed to handle user decision", "error": str(e)}, 500
 
   return {"message": "User decision handled successfully"}, 200
+
+@routes.route('/generate-recipe', methods=['POST'])
+def generate_recipe():
+  try:
+    if not request.is_json:
+      return {"message": "Request body must be JSON"}, 400
+
+    data = request.json
+    dish_name = data.get("dish_name", "") 
+
+    if not dish_name:
+      return jsonify({"message": "Missing dish_name param"}), 400
+
+    client = OpenAI()
+    prompt = f"""
+    Generate a recipe for {dish_name}
+
+    Your generated text should contain Recipe name,Ingredients,Instructions
+
+    Ingredients should be a list in this format:
+    Name – quantity
+    Example: Bread – 2 slices, Butter – 1 tbsp
+
+    Then there should be a numbered list of instructions. Each numbered point should be one logical step and must contain only one sentence.
+
+    Notes:
+    - An ingredient name should not have options. For example, do not give an ingredient as "Chicken or Beef". In such cases, just make the choice yourself.
+    - If an entire ingredient is optional to the dish, skip it altogether. For example, "Cilantro - 2 tbsp (optional)" should be skipped altogether.
+    """
+
+    response = client.chat.completions.create(
+      model="gpt-4.1-mini",  
+      messages=[
+          {"role": "system", "content": "You are a helpful and expert chef."},
+          {"role": "user", "content": prompt}
+      ],
+      max_tokens=800,
+      temperature=0.6,
+    )
+
+    recipe_text = response.choices[0].message.content
+
+    print("[FLASK] Generated new recipe ✅")
+
+    return jsonify({"recipe": recipe_text, "message": "Generated recipe successfully"}), 200
+
+
+  except Exception as e:
+    return {"message": "Failed to generate recipe", "error": str(e)}, 500
