@@ -31,13 +31,13 @@ def create_workload():
       .execute()
     )
     print("[FLASK] Inserted new workload into DB ✅")
-    workflow_internal_id = db_response.data[0]["id"]
-    workflow_public_id = db_response.data[0]["public_id"]
+    workload_internal_id = db_response.data[0]["id"]
+    workload_public_id = db_response.data[0]["public_id"]
 
     # Enqueue preprocess task
     preprocess_queue.enqueue(
       "preprocess_worker.preprocess_task", 
-      workflow_internal_id,
+      workload_internal_id,
       input_text,
       result_ttl=86400 #24hrs
     )
@@ -50,7 +50,7 @@ def create_workload():
     }), 500
 
   return jsonify({
-    "workload_id": workflow_public_id,
+    "workload_id": workload_public_id,
     "message": "Created new workload successfully"
   }), 201
 
@@ -79,16 +79,24 @@ def continue_flow(workload_id):
     "message": "Continued flow successfully"
   }), 200
 
-@routes.route("/workflows/<workflow_id>/user-decision", methods=["PUT"])
-def user_decision(workflow_id):
+@routes.route("/workloads/<workload_public_id>/user-decision", methods=["PUT"])
+def user_decision(workload_public_id):
   try:
+    if not request.is_json:
+      return {"message": "Request body must be JSON"}, 400
+
     data = request.json
     choice = data.get("choice")
     selected_comic_id = data.get("selected_comic_id") 
 
-    print("REACHED",choice,selected_comic_id) 
+    if choice not in ["NEW", "EXISTING"]:
+      return {"message": "Invalid choice value"}, 400
+
+    print(f"REACHED: workload_public_id={workload_public_id}, choice={choice}, selected_comic_id={selected_comic_id}")
+
+    # TODO: Save decision in DB or perform necessary action
 
   except Exception as e:
     return {"message": "Failed to handle user decision", "error": str(e)}, 500
 
-  return {"message": f"User decision handled successfully"}, 200
+  return {"message": "User decision handled successfully"}, 200
