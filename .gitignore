@@ -3,5 +3,7 @@ __pycache__/
 .DS_Store
 /flask_orchestrator/venv
 /workers/preprocess/venv
+/workers/comicgen/venv
 /flask_orchestrator/.env.flask_orchestrator
 /workers/preprocess/.env.preprocess
+/workers/comicgen/.env.comicgen
