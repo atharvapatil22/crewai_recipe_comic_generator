@@ -10,16 +10,19 @@ from pydantic import ValidationError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from postgrest import APIError
-from shared.helpers import print_state,dalle_api_call,style_ing_image,style_ins_image,draw_page_title,get_reddit_preview_image
+import os
+from shared.helpers import print_state,dalle_api_call,style_ing_image,style_ins_image,draw_page_title,get_reddit_preview_image,upload_comic_to_reddit,workload_status_update
 from shared.pydantic_models import RecipeData,ImagesData,ImageObject,ImagePrompt
-from shared.constants import RL_DALEE_WAIT_TIME,RL_DALLEE_BATCH_SIZE,FINAL_PAGE_WIDTH,FINAL_PAGE_HEIGHT,PS_TITLE_HEIGHT
+from shared.constants import RL_DALEE_WAIT_TIME,RL_DALLEE_BATCH_SIZE,FINAL_PAGE_WIDTH,FINAL_PAGE_HEIGHT,PS_TITLE_HEIGHT,WORKLOAD_STATUSES
+from shared.supabase_client import supabase
 
 class ComicGenFlow(Flow):
-	def __init__(self, recipe_data):
+	def __init__(self, recipe_data,workload_id):
 		super().__init__()
 
     # Save recipe_data in state variable after validaton
 		try:
+			self.state['workload_id'] = workload_id
 			self.state['recipe_data'] = RecipeData(**recipe_data)
 		except ValidationError as e:
 			raise ValueError(f"[Application Exception] Invalid input recieved by ComicGenFlow. Invalid recipe_data: {e}")
@@ -37,6 +40,7 @@ class ComicGenFlow(Flow):
 	# (1) Generate image prompts for (i)List of ingredients (ii)List of instructions and (iii)Poster/Cover page,
 	@start()
 	def generate_prompts(self):
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['generating_prompts'])
 		recipe_data = self.state['recipe_data']
 
 		prompt_generation_agent = Agent(
@@ -138,6 +142,7 @@ class ComicGenFlow(Flow):
 	# (2) Generate DallE images using prompts
 	@listen(generate_prompts)
 	def generate_images(self):
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['generating_images'])
 		client = OpenAI()
 
 		# A list of all image objects including ingredients,instructions & poster. For each object dall api will be called
@@ -169,6 +174,7 @@ class ComicGenFlow(Flow):
 	# (3) Style the generated images with cropping and adding text
 	@listen(generate_images)
 	def style_images(self):
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['styling_images'])
 		images_data = self.state['images_data']
 		recipe_data = self.state['recipe_data']
 
@@ -188,6 +194,7 @@ class ComicGenFlow(Flow):
 	# (4) Merge the styled images and generate book pages.
 	@listen(style_images)
 	def merge_images(self):
+		workload_status_update(self.state['workload_id'],WORKLOAD_STATUSES['merging_comic_pages'])
 		images_data = self.state['images_data']
 		pages = []
 
@@ -227,7 +234,10 @@ class ComicGenFlow(Flow):
 			)
 
 		# Load and draw text
-		pattaya_font = Path(__file__).resolve().parent / "assets" / "Pattaya.ttf"
+		pattaya_font_path = "/app/fonts/Pattaya.ttf"
+		if not os.path.exists(pattaya_font_path):
+			raise FileNotFoundError(f"Font file not found at {pattaya_font_path}.")
+		pattaya_font = Path(pattaya_font_path)
 		try:
 			font = ImageFont.truetype(str(pattaya_font), 68)
 		except:
@@ -326,7 +336,6 @@ class ComicGenFlow(Flow):
 	# (5) Save the comic book on third party cloud platform
 	@listen(merge_images)
 	def cloud_upload(self,pages):
-
 		comic_url = upload_comic_to_reddit(pages,self.state['recipe_data'].name)
 
 		submission_id = comic_url.split('/')[-1]  
@@ -334,18 +343,17 @@ class ComicGenFlow(Flow):
 
 		# Adding comic url into DB
 		try:
-			db_response = (
-				supabase
-				.table("workloads")
-				.update({"comic_url": comic_url,"preview_image_url":preview_image_url})
-				.eq("id", self.state['recipe_data'].db_id)
-				.execute()
-			)
-			
-			print("Adding comic url into DB ✅")
-			# print("DB response: ",db_response)
+			comic_response = supabase.table("comics").insert({
+        "name": self.state['recipe_data'].name,
+        "preview_img_url": preview_image_url,
+        "reddit_url": comic_url
+      }).execute()
+			new_comic_id = comic_response.data[0]['id']
+			db_response = supabase.table("workloads").update({
+          "comic_id": new_comic_id,
+					"status":WORKLOAD_STATUSES['completed_w_new'],
+      }).eq("id", self.state['workload_id']).execute()
+			print("Updated DB with comic url ✅")
 		except (APIError) as e:
 			raise Exception(f"[DB Exception] msg {e}")
-		
-		return pages
 		
