@@ -10,4 +10,4 @@ def preprocess_task(workload_id, input_text):
   except Exception as e:
     raise Exception(f"\n[Preprocess Worker] An error occurred while running PreProcessingFlow: {e}")
 
-  print(f"[Preprocess Worker] Finished PreprocessingFlow for- {workload_id}")
+  print(f"[Preprocess Worker] Finished PreprocessingFlow for- {workload_id} ✅")
