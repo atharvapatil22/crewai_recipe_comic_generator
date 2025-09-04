@@ -34,6 +34,19 @@ services:
     networks:
       - crewai-network
 
+  comicgen_worker:
+    build:
+      context: .
+      dockerfile: workers/comicgen/Dockerfile
+    container_name: comicgen_worker
+    env_file:
+      - workers/comicgen/.env.comicgen
+    depends_on:
+      - redis
+      - flask_orchestrator
+    networks:
+      - crewai-network
+
 networks:
   crewai-network:
     driver: bridge
